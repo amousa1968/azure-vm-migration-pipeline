@@ -31,8 +31,8 @@ The migration pipeline consists of multiple phases:
 ## File Structure
 text
 azure-vm-migration-pipeline/
-├── terraform/                 # Infrastructure as Code
-├── ansible/                   # Configuration management
+**├── terraform/**                 # Infrastructure as Code
+**├── ansible/**                   # Configuration management
 ├── github-workflows/          # CI/CD pipelines
 ├── scripts/                   # Utility scripts
 └── docs/                      # Documentation
