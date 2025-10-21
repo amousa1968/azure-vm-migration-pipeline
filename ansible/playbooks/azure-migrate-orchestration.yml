@@ -1,0 +1,36 @@
+---
+- name: Azure Migrate VM Migration Orchestration
+  hosts: localhost
+  gather_facts: false
+  vars:
+    azure_subscription_id: "{{ azure_subscription_id }}"
+    azure_tenant_id: "{{ azure_tenant_id }}"
+    azure_client_id: "{{ azure_client_id }}"
+    azure_client_secret: "{{ azure_client_secret }}"
+    resource_group: "{{ resource_group }}"
+    migration_project: "{{ migration_project }}"
+
+  tasks:
+    - name: Verify Azure credentials
+      azure_rm_resource_info:
+        resource_group: "{{ resource_group }}"
+        provider: "Microsoft.Resources"
+        resource_type: "resourceGroups"
+      register: rg_info
+
+    - name: Display migration readiness
+      debug:
+        msg: "Azure environment is ready for migration"
+
+    - name: Generate Terraform import configuration
+      template:
+        src: terraform_import.j2
+        dest: "/tmp/terraform_import_{{ inventory_hostname }}.tf"
+      vars:
+        vm_name: "{{ inventory_hostname }}"
+        resource_group: "{{ resource_group }}"
+
+    - name: Create migration readiness report
+      template:
+        src: migration_report.j2
+        dest: "/tmp/migration_readiness_{{ inventory_hostname }}.md"

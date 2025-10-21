@@ -1,0 +1,7 @@
+[migrated_vms]
+# Add your migrated VM IPs or hostnames here
+# vm1 ansible_host=10.0.1.4 ansible_user=admin
+# vm2 ansible_host=10.0.1.5 ansible_user=admin
+
+[migration_controllers]
+localhost ansible_connection=local

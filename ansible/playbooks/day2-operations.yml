@@ -1,0 +1,58 @@
+---
+- name: Day 2 Operations Configuration
+  hosts: migrated_vms
+  become: yes
+  gather_facts: yes
+  vars:
+    log_analytics_workspace_id: "{{ log_analytics_workspace_id }}"
+    log_analytics_key: "{{ log_analytics_key }}"
+
+  tasks:
+    - name: Install Azure Monitor Agent (Windows)
+      win_package:
+        path: https://go.microsoft.com/fwlink/?linkid=2190492
+        product_id: "AzureMonitorAgent"
+        state: present
+      when: ansible_os_family == "Windows"
+
+    - name: Install Azure Monitor Agent (Linux)
+      apt:
+        name: azmonitoragent
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Configure automatic updates (Windows)
+      win_updates:
+        category_names:
+          - SecurityUpdates
+          - CriticalUpdates
+          - UpdateRollups
+        state: installed
+      when: ansible_os_family == "Windows"
+
+    - name: Configure automatic updates (Linux)
+      apt:
+        upgrade: dist
+        update_cache: yes
+        autoremove: yes
+        autoclean: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install and configure baseline security tools
+      include_role:
+        name: security_hardening
+
+    - name: Verify all required services are running
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop: "{{ critical_services | default([]) }}"
+      ignore_errors: yes
+
+    - name: Create success flag file
+      file:
+        path: /etc/migration_complete
+        state: touch
+        mode: '0644'

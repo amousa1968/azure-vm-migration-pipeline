@@ -1,0 +1,41 @@
+---
+- name: Apply CIS benchmarks for Windows
+  block:
+    - name: Disable SMBv1
+      win_command: Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force
+
+    - name: Enable Windows Firewall
+      win_command: Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True
+
+    - name: Set password policy
+      win_command: |
+        net accounts /minpwlen:14
+        net accounts /maxpwage:60
+
+    - name: Disable guest account
+      win_command: net user guest /active:no
+
+  when: ansible_os_family == "Windows"
+
+- name: Apply CIS benchmarks for Linux
+  block:
+    - name: Ensure password expiration is 90 days
+      lineinfile:
+        path: /etc/login.defs
+        regexp: '^PASS_MAX_DAYS'
+        line: 'PASS_MAX_DAYS 90'
+
+    - name: Ensure password change minimum days is 7
+      lineinfile:
+        path: /etc/login.defs
+        regexp: '^PASS_MIN_DAYS'
+        line: 'PASS_MIN_DAYS 7'
+
+    - name: Disable root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PermitRootLogin'
+        line: 'PermitRootLogin no'
+      notify: restart sshd
+
+  when: ansible_os_family == "Linux"

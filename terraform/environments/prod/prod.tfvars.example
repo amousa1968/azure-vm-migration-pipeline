@@ -1,0 +1,19 @@
+# Production Environment Configuration
+environment = "prod"
+location = "East US 2"
+
+# Network Configuration
+vnet_address_space = "10.0.0.0/16"
+subnet_address_prefix = "10.0.1.0/24"
+allowed_ip_range = "10.0.0.0/8"
+
+# Monitoring
+alert_email = "prod-alerts@company.com"
+
+# Tags
+tags = {
+  Environment = "production"
+  Project     = "VM Migration"
+  CostCenter  = "IT-123"
+  SLA         = "99.9%"
+}
