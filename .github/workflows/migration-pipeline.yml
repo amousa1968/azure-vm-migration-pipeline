@@ -1,0 +1,165 @@
+name: VMware to Azure Migration Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Migration phase to execute'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - phase1
+          - phase2
+          - phase3
+          - phase4
+          - phase5
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  TF_VERSION: '1.5.0'
+  ANSIBLE_VERSION: '2.15.0'
+  AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+
+jobs:
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Setup Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+
+      - name: Validate Terraform
+        run: |
+          cd terraform
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate Ansible
+        run: |
+          cd ansible
+          ansible-playbook --syntax-check playbooks/migration_orchestration.yml
+
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    needs: validate
+    if: github.event.inputs.phase == 'all' || github.event.inputs.phase == 'phase1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ env.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd terraform
+          terraform plan -no-color -out=tfplan
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan
+          path: terraform/tfplan
+
+  migrate:
+    name: Execute Migration
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    needs: terraform-plan
+    if: github.event.inputs.phase != 'phase1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ env.AZURE_CREDENTIALS }}
+
+      - name: Execute Migration Phase ${{ github.event.inputs.phase }}
+        run: |
+          cd ansible
+          case ${{ github.event.inputs.phase }} in
+            all)
+              ansible-playbook playbooks/migration_orchestration.yml
+              ;;
+            phase2)
+              ansible-playbook playbooks/phases/phase2_vm_migration_orchestration.yml
+              ;;
+            phase3)
+              ansible-playbook playbooks/phases/phase3_post_migration_setup.yml
+              ;;
+            phase4)
+              ansible-playbook playbooks/phases/phase4_cutover_execution.yml
+              ;;
+            phase5)
+              ansible-playbook playbooks/phases/phase5_day2_operations.yml
+              ;;
+          esac
+
+      - name: Upload Migration Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: migration-reports
+          path: |
+            ansible/reports/
+            ansible/docs/
+
+  cleanup:
+    name: Cleanup Resources
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    needs: migrate
+    if: failure()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ env.AZURE_CREDENTIALS }}
+
+      - name: Terraform Destroy
+        run: |
+          cd terraform
+          terraform destroy -auto-approve
