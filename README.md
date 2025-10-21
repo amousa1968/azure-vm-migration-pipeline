@@ -27,3 +27,12 @@ The migration pipeline consists of multiple phases:
    ```bash
    chmod +x scripts/setup-environment.sh
    ./scripts/setup-environment.sh
+
+## File Structure
+text
+azure-vm-migration-pipeline/
+├── terraform/                 # Infrastructure as Code
+├── ansible/                   # Configuration management
+├── github-workflows/          # CI/CD pipelines
+├── scripts/                   # Utility scripts
+└── docs/                      # Documentation
